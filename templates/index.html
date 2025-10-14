@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eCourts Scraper</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 30px; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .inline-group { display: flex; gap: 10px; }
+        .inline-group input { flex: 1; }
+        button { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 10px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .results { margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 4px; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info-box { background: #e9ecef; padding: 15px; margin: 10px 0; border-radius: 4px; }
+        .listing-status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .listed-today { background: #d4edda; color: #155724; }
+        .listed-tomorrow { background: #fff3cd; color: #856404; }
+        .not-listed { background: #f8d7da; color: #721c24; }
+        .causelist-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .causelist-table th, .causelist-table td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        .causelist-table th { background: #f8f9fa; }
+        .loading { display: none; text-align: center; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>eCourts Scraper</h1>
+        
+        <form id="searchForm">
+            <div class="form-group">
+                <label>Search Method:</label>
+                <select id="searchMethod" onchange="toggleSearchFields()">
+                    <option value="cnr">CNR Number</option>
+                    <option value="details">Case Details</option>
+                </select>
+            </div>
+            
+            <div id="cnrField" class="form-group">
+                <label for="cnr">CNR Number:</label>
+                <input type="text" id="cnr" placeholder="e.g., DLCT01-123456-2024">
+            </div>
+            
+            <div id="detailsFields" style="display: none;">
+                <div class="form-group">
+                    <div class="inline-group">
+                        <div>
+                            <label for="caseType">Case Type:</label>
+                            <input type="text" id="caseType" placeholder="e.g., CRL, CIV">
+                        </div>
+                        <div>
+                            <label for="caseNumber">Case Number:</label>
+                            <input type="text" id="caseNumber" placeholder="e.g., 123">
+                        </div>
+                        <div>
+                            <label for="caseYear">Year:</label>
+                            <input type="text" id="caseYear" placeholder="e.g., 2024">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="downloadPdf"> Download PDF (if available)
+                </label>
+            </div>
+            
+            <button type="submit" id="searchBtn">Search Case</button>
+            <button type="button" onclick="downloadCauselist()" id="causelistBtn">Download Today's Cause List</button>
+        </form>
+        
+        <div class="loading" id="loading">
+            <p>Processing request...</p>
+        </div>
+        
+        <div id="results" class="results" style="display: none;"></div>
+    </div>
+
+    <script>
+        function toggleSearchFields() {
+            const method = document.getElementById('searchMethod').value;
+            const cnrField = document.getElementById('cnrField');
+            const detailsFields = document.getElementById('detailsFields');
+            
+            if (method === 'cnr') {
+                cnrField.style.display = 'block';
+                detailsFields.style.display = 'none';
+            } else {
+                cnrField.style.display = 'none';
+                detailsFields.style.display = 'block';
+            }
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+            document.getElementById('searchBtn').disabled = show;
+            document.getElementById('causelistBtn').disabled = show;
+        }
+
+        function showResults(html) {
+            const results = document.getElementById('results');
+            results.innerHTML = html;
+            results.style.display = 'block';
+        }
+
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const method = document.getElementById('searchMethod').value;
+            const data = { download_pdf: document.getElementById('downloadPdf').checked };
+            
+            if (method === 'cnr') {
+                data.cnr = document.getElementById('cnr').value;
+                if (!data.cnr) {
+                    alert('Please enter CNR number');
+                    return;
+                }
+            } else {
+                data.case_type = document.getElementById('caseType').value;
+                data.case_number = document.getElementById('caseNumber').value;
+                data.case_year = document.getElementById('caseYear').value;
+                if (!data.case_type || !data.case_number || !data.case_year) {
+                    alert('Please fill all case details');
+                    return;
+                }
+            }
+            
+            showLoading(true);
+            
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayCaseResults(result.data);
+                } else {
+                    showResults(`<div class="error">Error: ${result.error}</div>`);
+                }
+            } catch (error) {
+                showResults(`<div class="error">Network error: ${error.message}</div>`);
+            }
+            
+            showLoading(false);
+        });
+
+        function displayCaseResults(data) {
+            let html = '<h3 class="success">Case Search Results</h3>';
+            
+            // Case info
+            if (data.case_info) {
+                html += '<div class="info-box"><h4>Case Information</h4>';
+                for (const [key, value] of Object.entries(data.case_info)) {
+                    html += `<p><strong>${key}:</strong> ${value}</p>`;
+                }
+                html += '</div>';
+            }
+            
+            // Listing status
+            if (data.listing_info) {
+                const listing = data.listing_info;
+                let statusClass = 'not-listed';
+                let statusText = 'Not listed today or tomorrow';
+                
+                if (listing.listed_today) {
+                    statusClass = 'listed-today';
+                    statusText = '✓ Listed TODAY';
+                } else if (listing.listed_tomorrow) {
+                    statusClass = 'listed-tomorrow';
+                    statusText = '✓ Listed TOMORROW';
+                }
+                
+                html += `<div class="listing-status ${statusClass}">
+                    <h4>${statusText}</h4>
+                    <p><strong>Court:</strong> ${listing.court_name}</p>
+                    <p><strong>Next Hearing:</strong> ${listing.next_hearing || 'Not found'}</p>
+                    ${listing.serial_number ? `<p><strong>Serial Number:</strong> ${listing.serial_number}</p>` : ''}
+                </div>`;
+            }
+            
+            // PDF download result
+            if (data.pdf_download) {
+                if (data.pdf_download.downloaded_files && data.pdf_download.downloaded_files.length > 0) {
+                    html += '<div class="info-box"><h4>Downloaded Files</h4>';
+                    data.pdf_download.downloaded_files.forEach(file => {
+                        const filename = file.split('/').pop();
+                        html += `<p><a href="/download/${filename}" target="_blank">📄 ${filename}</a></p>`;
+                    });
+                    html += '</div>';
+                } else {
+                    html += '<div class="error">No PDF files available for download</div>';
+                }
+            }
+            
+            showResults(html);
+        }
+
+        async function downloadCauselist() {
+            showLoading(true);
+            
+            try {
+                const response = await fetch('/causelist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayCauselistResults(result.data);
+                } else {
+                    showResults(`<div class="error">Error: ${result.error}</div>`);
+                }
+            } catch (error) {
+                showResults(`<div class="error">Network error: ${error.message}</div>`);
+            }
+            
+            showLoading(false);
+        }
+
+        function displayCauselistResults(data) {
+            let html = `<h3 class="success">Today's Cause List</h3>
+                       <p>Total Cases: ${data.total_cases} (showing first 50)</p>`;
+            
+            if (data.cause_list && data.cause_list.length > 0) {
+                html += `<table class="causelist-table">
+                    <thead>
+                        <tr><th>Serial No.</th><th>Case No.</th><th>Case Title</th></tr>
+                    </thead>
+                    <tbody>`;
+                
+                data.cause_list.forEach(case_item => {
+                    html += `<tr>
+                        <td>${case_item.serial_no}</td>
+                        <td>${case_item.case_no}</td>
+                        <td>${case_item.case_title}</td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table>';
+                
+                if (data.file_path) {
+                    const filename = data.file_path.split('/').pop();
+                    html += `<p style="margin-top: 15px;">
+                        <a href="/download/${filename}" target="_blank">📄 Download Full Cause List (JSON)</a>
+                    </p>`;
+                }
+            } else {
+                html += '<p>No cases found in today\'s cause list.</p>';
+            }
+            
+            showResults(html);
+        }
+    </script>
+</body>
+</html>
