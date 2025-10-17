@@ -26,14 +26,16 @@ env/
 ENV/
 
 # Database
+instance/
 *.db
 *.sqlite
 *.sqlite3
-instance/
 
-# Logs
-*.log
-logs/
+# Generated Files
+downloads/
+results/
+*.pdf
+*.json
 
 # IDE
 .vscode/
@@ -45,11 +47,5 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Project specific
-results/
-downloads/
-ecourt_scraper.log
-
-# Secrets
-.env
-config.py
+# Logs
+*.log

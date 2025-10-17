@@ -10,3 +10,4 @@ bcrypt==4.0.1
 html5lib==1.1
 requests-html==0.10.0
 selenium==4.15.0
+reportlab==4.0.7

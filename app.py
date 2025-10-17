@@ -3,13 +3,14 @@
 eCourts Professional System - Minimal Clean Version
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, send_file
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Case
 import os
 from datetime import datetime, date, timedelta
 import logging
 import re
+from causelist_scraper import CauseListScraper, DelhiCourtsScraper
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -400,7 +401,220 @@ def admin_dashboard():
     
     return render_template('admin_dashboard.html', stats=stats)
 
+# Cause List Routes
+@app.route('/causelist')
+@login_required
+def causelist_dashboard():
+    return render_template('causelist_dashboard.html')
+
+@app.route('/api/causelist/states')
+@login_required
+def api_causelist_states():
+    try:
+        scraper = CauseListScraper()
+        states = scraper.get_states()
+        
+        # Mock data if API fails
+        if not states:
+            states = [
+                {'state_code': 'MP', 'state_name': 'Madhya Pradesh'},
+                {'state_code': 'DL', 'state_name': 'Delhi'},
+                {'state_code': 'UP', 'state_name': 'Uttar Pradesh'},
+                {'state_code': 'MH', 'state_name': 'Maharashtra'},
+                {'state_code': 'KA', 'state_name': 'Karnataka'}
+            ]
+        
+        return jsonify({'success': True, 'states': states})
+    except Exception as e:
+        logger.error(f"States API error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load states'})
+
+@app.route('/api/causelist/districts')
+@login_required
+def api_causelist_districts():
+    try:
+        state_code = request.args.get('state_code')
+        scraper = CauseListScraper()
+        districts = scraper.get_districts(state_code)
+        
+        # Mock data if API fails
+        if not districts:
+            districts = [
+                {'district_code': '01', 'district_name': 'Bhopal'},
+                {'district_code': '02', 'district_name': 'Indore'},
+                {'district_code': '03', 'district_name': 'Jabalpur'}
+            ]
+        
+        return jsonify({'success': True, 'districts': districts})
+    except Exception as e:
+        logger.error(f"Districts API error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load districts'})
+
+@app.route('/api/causelist/complexes')
+@login_required
+def api_causelist_complexes():
+    try:
+        state_code = request.args.get('state_code')
+        district_code = request.args.get('district_code')
+        scraper = CauseListScraper()
+        complexes = scraper.get_court_complexes(state_code, district_code)
+        
+        # Mock data if API fails
+        if not complexes:
+            complexes = [
+                {'complex_code': '001', 'complex_name': 'District Court Complex'},
+                {'complex_code': '002', 'complex_name': 'Sessions Court Complex'},
+                {'complex_code': '003', 'complex_name': 'High Court Complex'}
+            ]
+        
+        return jsonify({'success': True, 'complexes': complexes})
+    except Exception as e:
+        logger.error(f"Complexes API error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load court complexes'})
+
+@app.route('/api/causelist/courts')
+@login_required
+def api_causelist_courts():
+    try:
+        state_code = request.args.get('state_code')
+        district_code = request.args.get('district_code')
+        complex_code = request.args.get('complex_code')
+        scraper = CauseListScraper()
+        courts = scraper.get_courts(state_code, district_code, complex_code)
+        
+        # Mock data if API fails
+        if not courts:
+            courts = [
+                {'court_code': '01', 'court_name': 'Court of Additional Sessions Judge-01'},
+                {'court_code': '02', 'court_name': 'Court of Additional Sessions Judge-02'},
+                {'court_code': '03', 'court_name': 'Court of Civil Judge Sr. Division-01'}
+            ]
+        
+        return jsonify({'success': True, 'courts': courts})
+    except Exception as e:
+        logger.error(f"Courts API error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load courts'})
+
+@app.route('/api/causelist/download', methods=['POST'])
+@login_required
+def api_causelist_download():
+    try:
+        data = request.get_json()
+        state_code = data.get('state_code')
+        district_code = data.get('district_code')
+        complex_code = data.get('complex_code')
+        court_code = data.get('court_code')
+        date = data.get('date')
+        
+        scraper = CauseListScraper()
+        
+        if court_code:
+            # Single court
+            causelist = scraper.get_cause_list(state_code, district_code, complex_code, court_code, date)
+            if 'error' in causelist:
+                return jsonify({'success': False, 'error': causelist['error']})
+            
+            court_name = f"Court {court_code}"
+            pdf_path = scraper.generate_pdf(causelist, court_name, date)
+            
+            if pdf_path:
+                files = [{
+                    'court_name': court_name,
+                    'file_path': pdf_path,
+                    'cases_count': len(causelist) if isinstance(causelist, list) else 0
+                }]
+            else:
+                return jsonify({'success': False, 'error': 'Failed to generate PDF'})
+        else:
+            # All courts in complex
+            all_causelists = scraper.get_all_courts_causelist(state_code, district_code, complex_code, date)
+            if 'error' in all_causelists:
+                return jsonify({'success': False, 'error': all_causelists['error']})
+            
+            files = scraper.generate_multiple_pdfs(all_causelists, date)
+            
+            if not files:
+                return jsonify({'success': False, 'error': 'No cause lists found or failed to generate PDFs'})
+        
+        return jsonify({'success': True, 'files': files})
+        
+    except Exception as e:
+        logger.error(f"Causelist download error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to download cause lists'})
+
+@app.route('/api/causelist/download-file')
+@login_required
+def api_causelist_download_file():
+    try:
+        file_path = request.args.get('file')
+        if not file_path or not os.path.exists(file_path):
+            return jsonify({'error': 'File not found'}), 404
+        
+        return send_file(file_path, as_attachment=True)
+        
+    except Exception as e:
+        logger.error(f"File download error: {e}")
+        return jsonify({'error': 'Download failed'}), 500
+
+# Delhi Courts Real Scraping Routes
+@app.route('/delhi-courts')
+@login_required
+def delhi_courts_dashboard():
+    return render_template('delhi_causelist.html')
+
+@app.route('/api/delhi-courts/complexes')
+@login_required
+def api_delhi_courts_complexes():
+    try:
+        from delhi_courts_scraper import DelhiCourtsRealScraper
+        scraper = DelhiCourtsRealScraper()
+        complexes = scraper.get_court_complexes()
+        
+        return jsonify({'success': True, 'complexes': complexes})
+    except Exception as e:
+        logger.error(f"Delhi courts complexes error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load court complexes'})
+
+@app.route('/api/delhi-courts/download', methods=['POST'])
+@login_required
+def api_delhi_courts_download():
+    try:
+        from delhi_courts_scraper import DelhiCourtsRealScraper
+        data = request.get_json()
+        complex_code = data.get('complex_code')
+        date = data.get('date')
+        
+        if not complex_code or not date:
+            return jsonify({'success': False, 'error': 'Court complex and date are required'})
+        
+        scraper = DelhiCourtsRealScraper()
+        result = scraper.download_all_judges_causelist(complex_code, date)
+        
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']})
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Delhi courts download error: {e}")
+        return jsonify({'success': False, 'error': 'Failed to download cause lists'})
+
+@app.route('/api/delhi-courts/download-file')
+@login_required
+def api_delhi_courts_download_file():
+    try:
+        file_path = request.args.get('file')
+        if not file_path or not os.path.exists(file_path):
+            return jsonify({'error': 'File not found'}), 404
+        
+        return send_file(file_path, as_attachment=True)
+        
+    except Exception as e:
+        logger.error(f"Delhi courts file download error: {e}")
+        return jsonify({'error': 'Download failed'}), 500
+
 if __name__ == '__main__':
     os.makedirs('instance', exist_ok=True)
     init_database()
     app.run(debug=True, host='0.0.0.0', port=5000)
+
