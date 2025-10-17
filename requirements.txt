@@ -1,0 +1,13 @@
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+click==8.1.7
+flask==2.3.3
+flask-sqlalchemy==3.0.5
+flask-login==0.6.3
+werkzeug==2.3.7
+bcrypt==4.0.1
+html5lib==1.1
+requests-html==0.10.0
+selenium==4.15.0
+reportlab==4.0.7

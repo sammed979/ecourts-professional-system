@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eCourts Admin Dashboard - Professional System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #dc3545 0%, #6f42c1 100%); min-height: 100vh; }
+        
+        .header { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 20px rgba(0,0,0,0.1); }
+        .header h1 { color: #dc3545; font-size: 24px; }
+        .user-info { display: flex; align-items: center; gap: 20px; }
+        .user-info span { color: #666; font-weight: 500; }
+        .admin-badge { background: linear-gradient(135deg, #dc3545 0%, #6f42c1 100%); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .logout-btn { background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 6px; text-decoration: none; font-size: 14px; transition: all 0.3s; }
+        .logout-btn:hover { background: #c82333; transform: translateY(-1px); }
+        
+        .container { max-width: 1600px; margin: 30px auto; padding: 0 30px; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 25px; margin-bottom: 30px; }
+        .stat-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 25px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); text-align: center; transition: transform 0.3s; position: relative; overflow: hidden; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--accent-color); }
+        .stat-card i { font-size: 40px; margin-bottom: 15px; color: var(--accent-color); }
+        .stat-card h3 { font-size: 32px; margin-bottom: 10px; font-weight: 700; color: #333; }
+        .stat-card p { color: #666; font-size: 16px; }
+        .stat-users { --accent-color: #007bff; }
+        .stat-cases { --accent-color: #28a745; }
+        .stat-today { --accent-color: #dc3545; }
+        .stat-tomorrow { --accent-color: #ffc107; }
+        .stat-system { --accent-color: #6f42c1; }
+        
+        .main-content { display: grid; grid-template-columns: 1fr; gap: 30px; }
+        .card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 30px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+        .card h3 { color: #333; margin-bottom: 25px; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 25px; }
+        .tab { padding: 12px 24px; background: #f8f9fa; border: 2px solid transparent; border-radius: 25px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+        .tab.active { background: linear-gradient(135deg, #dc3545 0%, #6f42c1 100%); color: white; }
+        .tab:hover:not(.active) { background: #e9ecef; }
+        
+        .table-container { overflow-x: auto; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { padding: 15px 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        .table th { background: #f8f9fa; font-weight: 600; color: #495057; }
+        .table tbody tr:hover { background: #f8f9fa; }
+        
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; transform: translateY(-1px); }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; transform: translateY(-1px); }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; transform: translateY(-1px); }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-warning:hover { background: #e0a800; transform: translateY(-1px); }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { background: white; margin: 5% auto; padding: 30px; width: 90%; max-width: 500px; border-radius: 15px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .modal h3 { margin-bottom: 25px; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+        .form-group input, .form-group select { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 14px; transition: border-color 0.3s; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #dc3545; }
+        
+        .user-badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .badge-admin { background: #dc3545; color: white; }
+        .badge-user { background: #6c757d; color: white; }
+        
+        .case-status { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .status-today { background: #dc3545; color: white; }
+        .status-tomorrow { background: #ffc107; color: #212529; }
+        .status-upcoming { background: #17a2b8; color: white; }
+        .status-normal { background: #6c757d; color: white; }
+        
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .loading i { font-size: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        
+        .search-box { margin-bottom: 20px; }
+        .search-box input { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 25px; font-size: 14px; }
+        
+        .pagination { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        .pagination button { padding: 8px 12px; border: 1px solid #dee2e6; background: white; border-radius: 6px; cursor: pointer; }
+        .pagination button.active { background: #dc3545; color: white; border-color: #dc3545; }
+        
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+            .container { padding: 0 15px; }
+            .table-container { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-shield-alt"></i> eCourts Admin Dashboard</h1>
+        <div class="user-info">
+            <span class="admin-badge"><i class="fas fa-crown"></i> ADMIN</span>
+            <span><i class="fas fa-user"></i> {{ current_user.mobile }}</span>
+            <a href="{{ url_for('logout') }}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </div>
+    
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'error' if category == 'error' else category }}">
+                        <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }}"></i>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="stats-grid">
+            <div class="stat-card stat-users">
+                <i class="fas fa-users"></i>
+                <h3 id="totalUsers">{{ stats.total_users }}</h3>
+                <p>Total Users</p>
+            </div>
+            <div class="stat-card stat-cases">
+                <i class="fas fa-folder"></i>
+                <h3 id="totalCases">{{ stats.total_cases }}</h3>
+                <p>Total Cases</p>
+            </div>
+            <div class="stat-card stat-today">
+                <i class="fas fa-calendar-day"></i>
+                <h3 id="todayCases">{{ stats.today_cases }}</h3>
+                <p>🔴 Today's Live Hearings</p>
+            </div>
+            <div class="stat-card stat-tomorrow">
+                <i class="fas fa-calendar-plus"></i>
+                <h3 id="tomorrowCases">{{ stats.tomorrow_cases }}</h3>
+                <p>🔴 Tomorrow's Live Hearings</p>
+            </div>
+            <div class="stat-card" style="--accent-color: #17a2b8;">
+                <i class="fas fa-calendar-week"></i>
+                <h3 id="upcomingCases">{{ stats.upcoming_cases }}</h3>
+                <p>🔴 Upcoming Live Hearings</p>
+            </div>
+            <div class="stat-card stat-system">
+                <i class="fas fa-server"></i>
+                <h3 id="systemHealth">100%</h3>
+                <p>System Health</p>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="card">
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('users')">
+                        <i class="fas fa-users"></i> Users Management
+                    </button>
+                    <button class="tab" onclick="showTab('cases')">
+                        <i class="fas fa-folder"></i> Cases Management
+                    </button>
+                    <button class="tab" onclick="showTab('analytics')">
+                        <i class="fas fa-chart-bar"></i> Analytics
+                    </button>
+                </div>
+                
+                <div id="usersTab">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3><i class="fas fa-users"></i> System Users</h3>
+                        <button class="btn btn-success" onclick="showAddUserModal()">
+                            <i class="fas fa-plus"></i> Add User
+                        </button>
+                    </div>
+                    
+                    <div class="search-box">
+                        <input type="text" id="userSearch" placeholder="Search users by mobile number..." onkeyup="filterUsers()">
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Mobile Number</th>
+                                    <th>Role</th>
+                                    <th>Created Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="5" class="loading">
+                                        <i class="fas fa-spinner"></i> Loading users...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="casesTab" style="display: none;">
+                    <h3><i class="fas fa-folder"></i> Cases Overview</h3>
+                    
+                    <div class="search-box">
+                        <input type="text" id="caseSearch" placeholder="Search cases by CNR..." onkeyup="filterCases()">
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>CNR</th>
+                                    <th>Case Title</th>
+                                    <th>Court</th>
+                                    <th>Next Hearing</th>
+                                    <th>Status</th>
+                                    <th>Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="casesTableBody">
+                                <tr>
+                                    <td colspan="6" class="loading">
+                                        <i class="fas fa-spinner"></i> Loading cases...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="analyticsTab" style="display: none;">
+                    <h3><i class="fas fa-chart-bar"></i> System Analytics</h3>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <i class="fas fa-user-plus" style="color: #28a745;"></i>
+                            <h3 id="newUsersToday">0</h3>
+                            <p>New Users Today</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-search" style="color: #007bff;"></i>
+                            <h3 id="searchesToday">0</h3>
+                            <p>Searches Today</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-download" style="color: #17a2b8;"></i>
+                            <h3 id="downloadsToday">0</h3>
+                            <p>Downloads Today</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-database" style="color: #6f42c1;"></i>
+                            <h3 id="dbSize">0 MB</h3>
+                            <p>Database Size</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-top: 20px;">
+                        <h4>System Information</h4>
+                        <p><strong>Server Status:</strong> <span style="color: #28a745;">Online</span></p>
+                        <p><strong>Last Backup:</strong> <span id="lastBackup">Never</span></p>
+                        <p><strong>Uptime:</strong> <span id="uptime">Loading...</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-user-plus"></i> Add New User</h3>
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label for="newUserMobile">Mobile Number:</label>
+                    <input type="tel" id="newUserMobile" required maxlength="15" placeholder="Enter mobile number">
+                </div>
+                <div class="form-group">
+                    <label for="newUserPassword">Password:</label>
+                    <input type="password" id="newUserPassword" required minlength="6" placeholder="Enter password">
+                </div>
+                <div class="form-group">
+                    <label for="newUserRole">Role:</label>
+                    <select id="newUserRole">
+                        <option value="false">Regular User</option>
+                        <option value="true">Administrator</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Add User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'users';
+        let allUsers = [];
+        let allCases = [];
+        
+        function showTab(tab) {
+            currentTab = tab;
+            
+            // Update active tab
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Show/hide content
+            document.getElementById('usersTab').style.display = tab === 'users' ? 'block' : 'none';
+            document.getElementById('casesTab').style.display = tab === 'cases' ? 'block' : 'none';
+            document.getElementById('analyticsTab').style.display = tab === 'analytics' ? 'block' : 'none';
+            
+            if (tab === 'users') {
+                loadUsers();
+            } else if (tab === 'cases') {
+                loadCases();
+            } else if (tab === 'analytics') {
+                loadAnalytics();
+            }
+        }
+        
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                const result = await response.json();
+                
+                if (result.success) {
+                    allUsers = result.users;
+                    displayUsers(allUsers);
+                    document.getElementById('totalUsers').textContent = allUsers.length;
+                } else {
+                    showAlert('Error loading users: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        function displayUsers(users) {
+            const tbody = document.getElementById('usersTableBody');
+            
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: #666;">No users found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.mobile}</td>
+                    <td>
+                        <span class="user-badge ${user.is_admin ? 'badge-admin' : 'badge-user'}">
+                            ${user.is_admin ? 'Admin' : 'User'}
+                        </span>
+                    </td>
+                    <td>${user.created_at}</td>
+                    <td>
+                        ${user.id !== {{ current_user.id }} ? `
+                            <button class="btn btn-danger" onclick="deleteUser(${user.id}, '${user.mobile}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        ` : '<span style="color: #999;">Current User</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        async function loadCases() {
+            try {
+                const response = await fetch('/api/cases?filter=all&per_page=50');
+                const result = await response.json();
+                
+                if (result.success) {
+                    allCases = result.cases;
+                    displayCases(allCases);
+                    updateCaseStats(result.cases);
+                } else {
+                    showAlert('Error loading cases: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        function displayCases(cases) {
+            const tbody = document.getElementById('casesTableBody');
+            
+            if (cases.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #666;">No cases found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = cases.map(case_item => {
+                let statusClass = 'status-normal';
+                let statusText = 'Scheduled';
+                
+                if (case_item.is_today) {
+                    statusClass = 'status-today';
+                    statusText = 'Today';
+                } else if (case_item.is_tomorrow) {
+                    statusClass = 'status-tomorrow';
+                    statusText = 'Tomorrow';
+                } else if (case_item.next_hearing_date && new Date(case_item.next_hearing_date) > new Date()) {
+                    statusClass = 'status-upcoming';
+                    statusText = 'Upcoming';
+                }
+                
+                return `
+                    <tr>
+                        <td><strong>${case_item.cnr}</strong></td>
+                        <td>${case_item.case_title}</td>
+                        <td>${case_item.court_name}</td>
+                        <td>${case_item.next_hearing_date || 'N/A'}</td>
+                        <td>
+                            <span class="case-status ${statusClass}">${statusText}</span>
+                        </td>
+                        <td>${case_item.updated_at}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function updateCaseStats(cases) {
+            const today = new Date().toISOString().split('T')[0];
+            const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+            
+            const todayCount = cases.filter(c => c.next_hearing_date === today).length;
+            const tomorrowCount = cases.filter(c => c.next_hearing_date === tomorrow).length;
+            
+            document.getElementById('totalCases').textContent = cases.length;
+            document.getElementById('todayCases').textContent = todayCount;
+            document.getElementById('tomorrowCases').textContent = tomorrowCount;
+        }
+        
+        async function loadAnalytics() {
+            try {
+                const response = await fetch('/api/admin/stats');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const stats = result.stats;
+                    
+                    // Update analytics display
+                    document.getElementById('newUsersToday').textContent = '0'; // Placeholder
+                    document.getElementById('searchesToday').textContent = '0'; // Placeholder
+                    document.getElementById('downloadsToday').textContent = '0'; // Placeholder
+                    document.getElementById('dbSize').textContent = Math.round(stats.system.database_size / 1024 / 1024) + ' MB';
+                    document.getElementById('lastBackup').textContent = 'Never';
+                    document.getElementById('uptime').textContent = 'Online';
+                }
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+            }
+        }
+        
+        function filterUsers() {
+            const searchTerm = document.getElementById('userSearch').value.toLowerCase();
+            const filteredUsers = allUsers.filter(user => 
+                user.mobile.toLowerCase().includes(searchTerm)
+            );
+            displayUsers(filteredUsers);
+        }
+        
+        function filterCases() {
+            const searchTerm = document.getElementById('caseSearch').value.toLowerCase();
+            const filteredCases = allCases.filter(case_item => 
+                case_item.cnr.toLowerCase().includes(searchTerm) ||
+                case_item.case_title.toLowerCase().includes(searchTerm)
+            );
+            displayCases(filteredCases);
+        }
+        
+        function showAddUserModal() {
+            document.getElementById('addUserModal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('addUserModal').style.display = 'none';
+            document.getElementById('addUserForm').reset();
+        }
+        
+        document.getElementById('addUserForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                mobile: document.getElementById('newUserMobile').value.trim(),
+                password: document.getElementById('newUserPassword').value,
+                is_admin: document.getElementById('newUserRole').value === 'true'
+            };
+            
+            if (!data.mobile || !data.password) {
+                showAlert('Please fill all fields', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('User added successfully!', 'success');
+                    closeModal();
+                    loadUsers();
+                } else {
+                    showAlert('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Network error: ' + error.message, 'error');
+            }
+        });
+        
+        async function deleteUser(userId, mobile) {
+            if (!confirm(`Are you sure you want to delete user ${mobile}?`)) return;
+            
+            try {
+                const response = await fetch('/api/admin/users', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('User deleted successfully!', 'success');
+                    loadUsers();
+                } else {
+                    showAlert('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Network error: ' + error.message, 'error');
+            }
+        }
+        
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+                ${message}
+            `;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('addUserModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+        
+        // Load initial data
+        loadUsers();
+        
+        // Auto-refresh stats every 60 seconds
+        setInterval(() => {
+            if (currentTab === 'users') loadUsers();
+            else if (currentTab === 'cases') loadCases();
+            else if (currentTab === 'analytics') loadAnalytics();
+            updateLiveHearingCounts();
+        }, 60000);
+        
+        // Update live hearing counts
+        async function updateLiveHearingCounts() {
+            try {
+                const todayResponse = await fetch('/api/live-hearings?type=today');
+                const tomorrowResponse = await fetch('/api/live-hearings?type=tomorrow');
+                const upcomingResponse = await fetch('/api/live-hearings?type=upcoming&days=7');
+                
+                const todayResult = await todayResponse.json();
+                const tomorrowResult = await tomorrowResponse.json();
+                const upcomingResult = await upcomingResponse.json();
+                
+                if (todayResult.success) {
+                    document.getElementById('todayCases').textContent = todayResult.data.total;
+                }
+                if (tomorrowResult.success) {
+                    document.getElementById('tomorrowCases').textContent = tomorrowResult.data.total;
+                }
+                if (upcomingResult.success) {
+                    document.getElementById('upcomingCases').textContent = upcomingResult.data.total;
+                }
+            } catch (error) {
+                console.error('Error updating live hearing counts:', error);
+            }
+        }
+        
+        // Initial load of live hearing counts
+        setTimeout(updateLiveHearingCounts, 1000);
+    </script>
+</body>
+</html>
