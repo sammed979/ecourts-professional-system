@@ -10,7 +10,7 @@ import os
 from datetime import datetime, date, timedelta
 import logging
 import re
-from causelist_scraper import CauseListScraper, DelhiCourtsScraper
+# Removed old import - using delhi_courts_scraper instead
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
